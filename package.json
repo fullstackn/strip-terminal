@@ -19,8 +19,10 @@
     "pnpm": ">=9"
   },
   "dependencies": {
-    "@saleor/app-sdk": "0.50.0",
+    "@saleor/app-sdk": "^0.50.0",
     "@saleor/macaw-ui": "1.0.0",
+    "@stripe/react-stripe-js": "^2.7.3",
+    "@stripe/stripe-js": "^4.1.0",
     "@urql/exchange-auth": "^1.0.0",
     "@vitejs/plugin-react": "4.2.1",
     "graphql": "^16.8.1",
@@ -29,6 +31,8 @@
     "next": "14.1.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-modal": "^3.16.1",
+    "react-router-dom": "^6.25.1",
     "stripe": "^16.5.0",
     "urql": "^4.0.2",
     "vite": "5.2.10",
@@ -48,6 +52,7 @@
     "@types/node": "^18.11.18",
     "@types/react": "^18.2.6",
     "@types/react-dom": "^18.2.4",
+    "@types/react-modal": "^3.16.3",
     "eslint": "8.31.0",
     "eslint-config-next": "13.1.2",
     "eslint-config-prettier": "^8.6.0",

@@ -3,14 +3,12 @@ import { Box, Button, Text } from "@saleor/macaw-ui";
 import { useRouter } from "next/router";
 import { gql} from 'urql';
 import {OrderById} from "../order-by-id";
-import {createIntent, processRefund} from "../stripe";
-import {useState, useEffect} from "react";
+import {createIntent, getPaymentIntent, processRefund} from "../stripe";
+import {useState} from "react";
 import {
-  useRunTransactionCreateMutation,
   useOrderDetailsGraphiQlQuery,
-  useInitializePaymentGatewayMutation,
-  PaymentGatewayToInitialize,
-  useTransactionInitializeMutation, useTransactionProcessMutation, useRunUpdateMetadataMutation,
+  useTransactionInitializeMutation,
+  useRunUpdateMetadataMutation,
 } from "../../generated/graphql";
 
 
@@ -87,10 +85,21 @@ query OrderDetailsGraphiQL($id: ID!) {
 }`;
 
 const ActionsPage = () => {
+    const [modalIsOpen, setModalIsOpen] = useState(false);
+  const stripeUrl = 'https://pay.stripe.com/receipts/payment/...';
+
+  const openModal = () => {
+    setModalIsOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalIsOpen(false);
+  }
 
   const router = useRouter();
   const { orderId } = router.query;
   const { appBridge} = useAppBridge();
+  const [isReceiptVisible, setReceiptVisible] = useState(false);
 
   const navigateToOrders = () => {
     appBridge?.dispatch(
@@ -108,58 +117,48 @@ const ActionsPage = () => {
   };
   const opt: any = {variables: {id: orderId}};
   const [{data, fetching}] = useOrderDetailsGraphiQlQuery(opt);
-  console.log('data', data);
-  const lastOrder = data?.order;
+  const currentOrder = data?.order;
 
   let orderPaymentIntentionId = '';
-  if (lastOrder?.metadata.length){
-    const res = lastOrder?.metadata.filter(obj => {return obj.key === 'paymentIntentionId'});
-    orderPaymentIntentionId  = res[0].value;
+  let orderReceiptUrl = '';
+  if (currentOrder?.metadata.length){
+    const resPaymentId = currentOrder?.metadata.find(el => el.key === 'paymentIntentionId');
+    const resReceptUrl = currentOrder?.metadata.find(el => el.key === 'receiptUrl');
+    if (resPaymentId) {
+        orderPaymentIntentionId = resPaymentId.value;
+    }
+    if (resReceptUrl){
+      orderReceiptUrl = resReceptUrl.value;
+    }
   }
-
-  console.log('orderPaymentIntentionId', orderPaymentIntentionId);
 
   const [paymentdata, setPaymentData] = useState(null);
   const [paymentloading, setPaymentLoading] = useState(false);
   const [pamenterror, setPaymentError] = useState(null);
-  const [createTrnState, createTrn] = useRunTransactionCreateMutation();
-  const [, runInitializePaymentGatewayMutation] = useInitializePaymentGatewayMutation()
   const [, runTransactionInitialize] = useTransactionInitializeMutation()
-  const [, runTransactionProcess] = useTransactionProcessMutation()
   const [, runUpdateMetadata] = useRunUpdateMetadataMutation()
   const handlePaymentButtonClick = async () => {
     setPaymentLoading(true);
     setPaymentError(null);
     try {
-      const createIntentResponse = await createIntent(lastOrder?.total.gross.amount, lastOrder?.total.gross.currency);
+      const createIntentResponse = await createIntent(currentOrder?.total.gross.amount, currentOrder?.total.gross.currency);
+      console.log('createIntentResponse', createIntentResponse);
+
       const paymentIntentionId = createIntentResponse.action?.process_payment_intent?.payment_intent;
+
+      const pi =  await getPaymentIntent(paymentIntentionId);
+      const receiptUrl =  pi.data[0].receipt_url;
+      // if succeed set paymentIntentionId in order's metadata
       const updateMetadataResponse = await runUpdateMetadata(
           {
             id: orderId,
-            input:  [{key: 'paymentIntentionId', value: paymentIntentionId}]
+            input:  [
+                {key: 'paymentIntentionId', value: paymentIntentionId},
+                {key: 'receiptUrl', value: receiptUrl},
+            ]
           }
       )
-      console.log('updateMetadataResponse', updateMetadataResponse);
-      console.log('paymentIntentionId', paymentIntentionId);
-      //const createPaymentResponse = makeOrderPaid(orderId, "777", "dummy");
-      //console.log("createPaymentResponse", createPaymentResponse);
-      const paymentGateways = [{ id: "stripe.terminal.saleor.app" }];
-      //const initPaymentResponse = await runInitializePaymentGatewayMutation(
-       //   {id:paymentIntentionId,  amount: lastOrder?.total.gross.amount,  paymentGateways: paymentGateways});
-      //console.log('initPaymentResponse', initPaymentResponse);
-      const trnInitResponse = await runTransactionInitialize(
-          {id: orderId,
-              amount: lastOrder?.total.gross.amount,
-              paymentGateway: paymentGateways[0]}
-      );
-      console.log(trnInitResponse);
-      /*
-      const transactionId = trnInitResponse.data?.transactionInitialize?.transaction?.id;
-      const trnProcessResponse = await runTransactionProcess({id: transactionId});
-      //console.log("createPaymentResponse", initPaymentResponse);
-      console.log("trnInitResponse", trnInitResponse);
-      console.log("trnProcessResponse", trnProcessResponse);
-      */
+
       appBridge?.dispatch({
                 type: "notification",
                 payload: {
@@ -172,6 +171,15 @@ const ActionsPage = () => {
     } catch (err: any) {
       console.log(err);
       setPaymentError(err.message);
+      appBridge?.dispatch({
+                type: "notification",
+                payload: {
+                  status: "error",
+                  title: "Payment",
+                  text: err.message,
+                  actionId: "message-from-app",
+                },
+              });
     } finally {
       setPaymentLoading(false);
     }
@@ -182,7 +190,7 @@ const ActionsPage = () => {
     try {
       const refundResponse = await processRefund(orderPaymentIntentionId);
       console.log('result', refundResponse);
-
+      // if succeed clean up paymentIntent in order's metadata
       const updateMetadataResponse = await runUpdateMetadata(
           {
             id: orderId,
@@ -211,90 +219,84 @@ const ActionsPage = () => {
 
 
   return (
-    <Box padding={8} display={"flex"} flexDirection={"column"} gap={6} __maxWidth={"640px"}>
-      <Box>
-        <Text as={"p"}>
-          <b>Stripe Terminal Payments</b>
+      <Box padding={8} display={"flex"} flexDirection={"column"} gap={6} __maxWidth={"640px"} sandbox={"allow-popups"} >
+        <Box>
+          <Text as={"p"}>
+            <b>Stripe Terminal Payments</b>
           </Text>
-      </Box>
-      <OrderById orderId={orderId} />
-      <Box>
-        <Box display={"flex"} gap={4} gridAutoFlow={"column"} marginY={4}>
-          <Button
-            variant={"secondary"}
-            disabled={orderPaymentIntentionId !== ''}
-            onClick={handlePaymentButtonClick}
-          >
-            Pay by terminal 💵
-          </Button>
-          <Button variant={"secondary"} onClick={() => {
-              appBridge?.dispatch({
-                type: "notification",
-                payload: {
-                  status: "success",
-                  title: "You rock!",
-                  text: "This notification was triggered from Saleor App",
-                  actionId: "message-from-app",
-                },
-              });
-            }}>
-            Print receipt 📃
-          </Button>
-          <Button variant={"secondary"} onClick={() => {
-              appBridge?.dispatch({
-                type: "notification",
-                payload: {
-                  status: "success",
-                  title: "You rock!",
-                  text: "This notification was triggered from Saleor App",
-                  actionId: "message-from-app",
-                },
-              });
-            }}>
-            Re-print receipt 📃
-          </Button>
-          <Button
-              variant={"secondary"}
-              onClick={handleRefundButtonClick}
-              disabled={orderPaymentIntentionId === ''}
-          >
-            Refund ⬅️
-          </Button>
-          <Button variant={"secondary"} onClick={navigateBackToOrder}>
-            Cancel ❌
-          </Button>
+        </Box>
+        <OrderById orderId={orderId}/>
+        <Box>
+          <Box display={"flex"} gap={4} gridAutoFlow={"column"} marginY={4}>
+            <Button
+                variant={"secondary"}
+                disabled={orderPaymentIntentionId !== ''}
+                onClick={handlePaymentButtonClick}
+            >
+              Pay by terminal 💵
+            </Button>
+            <Button
+                disabled={orderPaymentIntentionId === ''}
+                variant={"secondary"}
+                onClick={() => {
+                  // at the moment have not found a clean way to open another url in saleor app
+                  // due to iframe restrictions
+                  appBridge?.dispatch({
+                    type: "notification",
+                    payload: {
+                      status: "success",
+                      title: "How to open in iframe?",
+                      text: orderReceiptUrl,
+                      actionId: "message-from-app",
+                    },
+                  });
+                  console.log('print', orderReceiptUrl);
+                }}
+            >
+              Print receipt 📃
+            </Button>
+            <Button
+                variant={"secondary"}
+                onClick={handleRefundButtonClick}
+                disabled={orderPaymentIntentionId === ''}
+            >
+              Refund ⬅️
+            </Button>
+            <Button variant={"secondary"} onClick={navigateBackToOrder}>
+              Cancel ❌
+            </Button>
+          </Box>
+        </Box>
+
+        <Box display="flex" flexDirection={"column"} gap={2}>
+          <Text as={"h2"} size={8}>
+            Webhooks
+          </Text>
+          <>
+            {paymentdata && (
+                <Text>Payment succeed</Text>
+            )} </>
+
+          <Text>
+            The App Template contains an example <code>ORDER_CREATED</code> webhook under the path{" "}
+            <code>src/pages/api/order-created</code>.
+          </Text>
+          <Text as="p">
+            Create any{" "}
+            <Text
+                as={"a"}
+                fontWeight="bold"
+                size={4}
+                onClick={navigateToOrders}
+                cursor={"pointer"}
+                color={"info1"}
+            >
+              Order
+            </Text>{" "}
+            and check your console output!
+          </Text>
         </Box>
       </Box>
-
-      <Box display="flex" flexDirection={"column"} gap={2}>
-        <Text as={"h2"} size={8}>
-          Webhooks
-        </Text>
-        <>
-          {paymentdata && (
-            <Text>Payment succeed</Text>
-          )} </>
-
-        <Text>
-          The App Template contains an example <code>ORDER_CREATED</code> webhook under the path{" "}
-          <code>src/pages/api/order-created</code>.
-        </Text>
-        <Text as="p">
-          Create any{" "}
-          <Text
-            as={"a"}
-            fontWeight="bold"
-            size={4}
-            onClick={navigateToOrders}
-            cursor={"pointer"}
-            color={"info1"}
-          >
-            Order
-          </Text>{" "}
-          and check your console output!
-        </Text>
-      </Box>
-    </Box>
   );
 };
 

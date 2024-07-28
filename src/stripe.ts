@@ -34,6 +34,16 @@ export async function createIntent(amount: any, currency: any)  {
   return reader;
 }
 
+export async function getPaymentIntent(pi_id: any)  {
+    const charges = await stripe.charges.list({
+  payment_intent: pi_id,
+});
+  //const paymentIntent = await stripe.paymentIntents.retrieve(pi_id);
+  return charges;
+}
+
+
+
 
 export async function processRefund(pi_id: string)  {
     console.log('processRefund', pi_id);
