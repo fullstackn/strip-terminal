@@ -10,12 +10,18 @@ Boilerplate for Stripe Terminal Payments Saleor App.
 
 App supposed to be called from menu of order details by calling option `Stripe Terminal Payment`.
 
+In order to install up in dev mode:
+- run `pnpm dev`
+- create a tunnel
+- install app through Saleor web-interface 
+
 To use the application, you need to register a Stripe
-account and set values for the environment variables
+account, create a reader (test mode is available) and set up 
+values for the environment variables:
 - STRIPE_SECRET_KEY (Developers -> API keys -> Secret key)
 - STRIPE_READER_ID (Terminal reader ID)
 
-The application page displays 
+The application page displays:
 - information about the order we intend to pay for
 - buttons for payment and refund
 
