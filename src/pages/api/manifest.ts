@@ -30,7 +30,7 @@ export default createManifestHandler({
       webhooks: [orderCreatedWebhook.getWebhookManifest(apiBaseURL)],
       extensions: [
           {
-        "label": "STRIPE N",
+        "label": "Stripe Terminal Payment",
         "mount": "ORDER_DETAILS_MORE_ACTIONS",
         "target": "APP_PAGE",
         "permissions": [
