@@ -97,12 +97,7 @@ const ActionsPage = () => {
   }
 
   const router = useRouter();
-  const { orderIdVal } = router.query;
-  let orderId = ''
-  if (typeof orderIdVal === 'string'){
-      orderId = orderIdVal;
-  }
-
+  const { orderId } = router.query;
   const { appBridge} = useAppBridge();
 
   const navigateToOrders = () => {
@@ -156,7 +151,7 @@ const ActionsPage = () => {
             // if succeed set paymentIntentionId in order's metadata
             const updateMetadataResponse = await runUpdateMetadata(
                   {
-                    id: orderId ? orderId : '',
+                    id: String(orderId) ?? '',
                     input:  [
                         {key: 'paymentIntentionId', value: paymentIntentionId},
                         {key: 'receiptUrl', value: receiptUrl ? receiptUrl : ''},
@@ -201,7 +196,7 @@ const ActionsPage = () => {
             // if succeed clean up paymentIntent in order's metadata
             const updateMetadataResponse = await runUpdateMetadata(
                   {
-                    id: orderId,
+                    id: String(orderId) ?? '',
                     input:  [{key: 'paymentIntentionId', value: ''}]
                   }
               )
