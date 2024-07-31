@@ -97,9 +97,13 @@ const ActionsPage = () => {
   }
 
   const router = useRouter();
-  const { orderId } = router.query;
+  const { orderIdVal } = router.query;
+  let orderId = ''
+  if (typeof orderIdVal === 'string'){
+      orderId = orderIdVal;
+  }
+
   const { appBridge} = useAppBridge();
-  const [isReceiptVisible, setReceiptVisible] = useState(false);
 
   const navigateToOrders = () => {
     appBridge?.dispatch(
@@ -132,87 +136,99 @@ const ActionsPage = () => {
     }
   }
 
-  const [paymentdata, setPaymentData] = useState(null);
-  const [paymentloading, setPaymentLoading] = useState(false);
-  const [pamenterror, setPaymentError] = useState(null);
-  const [, runTransactionInitialize] = useTransactionInitializeMutation()
+  const [, setPaymentLoading] = useState(false);
+  const [, setPaymentError] = useState(null);
   const [, runUpdateMetadata] = useRunUpdateMetadataMutation()
   const handlePaymentButtonClick = async () => {
-    setPaymentLoading(true);
-    setPaymentError(null);
-    try {
-      const createIntentResponse = await createIntent(currentOrder?.total.gross.amount, currentOrder?.total.gross.currency);
-      console.log('createIntentResponse', createIntentResponse);
+      // would better make buttons disabled while we are performing requests
+      // or even place some spinner for the time we are waiting response from another service
+      setPaymentLoading(true);
+      setPaymentError(null);
+        try {
+            const createIntentResponse = await createIntent(currentOrder?.total.gross.amount, currentOrder?.total.gross.currency);
+            const paymentIntentionIdVal = createIntentResponse.action?.process_payment_intent?.payment_intent;
+            let paymentIntentionId = '';
+            if (typeof paymentIntentionIdVal === 'string'){
+                paymentIntentionId = paymentIntentionIdVal;
+            }
+            const paymentIntent =  await getPaymentIntent(paymentIntentionId);
+            const receiptUrl =  paymentIntent.data[0].receipt_url;
+            // if succeed set paymentIntentionId in order's metadata
+            const updateMetadataResponse = await runUpdateMetadata(
+                  {
+                    id: orderId ? orderId : '',
+                    input:  [
+                        {key: 'paymentIntentionId', value: paymentIntentionId},
+                        {key: 'receiptUrl', value: receiptUrl ? receiptUrl : ''},
+                    ]
+                  }
+                  )
 
-      const paymentIntentionId = createIntentResponse.action?.process_payment_intent?.payment_intent;
-
-      const pi =  await getPaymentIntent(paymentIntentionId);
-      const receiptUrl =  pi.data[0].receipt_url;
-      // if succeed set paymentIntentionId in order's metadata
-      const updateMetadataResponse = await runUpdateMetadata(
-          {
-            id: orderId,
-            input:  [
-                {key: 'paymentIntentionId', value: paymentIntentionId},
-                {key: 'receiptUrl', value: receiptUrl},
-            ]
-          }
-      )
-
-      appBridge?.dispatch({
-                type: "notification",
-                payload: {
-                  status: "success",
-                  title: "Payment",
-                  text: "Payment passed successfully",
-                  actionId: "message-from-app",
-                },
-              });
-    } catch (err: any) {
-      console.log(err);
-      setPaymentError(err.message);
-      appBridge?.dispatch({
-                type: "notification",
-                payload: {
-                  status: "error",
-                  title: "Payment",
-                  text: err.message,
-                  actionId: "message-from-app",
-                },
-              });
-    } finally {
-      setPaymentLoading(false);
-    }
+            appBridge?.dispatch({
+                    type: "notification",
+                    payload: {
+                      status: "success",
+                      title: "Payment",
+                      text: "Payment passed successfully",
+                      actionId: "message-from-app",
+                    },
+                  });
+        } catch (err: any) {
+          console.log(err);
+          setPaymentError(err.message);
+          appBridge?.dispatch({
+                    type: "notification",
+                    payload: {
+                      status: "error",
+                      title: "Payment",
+                      text: err.message,
+                      actionId: "message-from-app",
+                    },
+                  });
+        } finally {
+          setPaymentLoading(false);
+        }
 
   };
 
   const handleRefundButtonClick = async () => {
-    try {
-      const refundResponse = await processRefund(orderPaymentIntentionId);
-      console.log('result', refundResponse);
-      // if succeed clean up paymentIntent in order's metadata
-      const updateMetadataResponse = await runUpdateMetadata(
-          {
-            id: orderId,
-            input:  [{key: 'paymentIntentionId', value: ''}]
-          }
-      )
-      console.log('updateMetadataResponse', updateMetadataResponse);
-      appBridge?.dispatch({
-                type: "notification",
-                payload: {
-                  status: "success",
-                  title: "Refund",
-                  text: "Refund passed successfully",
-                  actionId: "message-from-app",
-                },
-              });
-    } catch (err: any) {
-      console.log(err);
-      setPaymentError(err.message);
-    } finally {
-      setPaymentLoading(false);
-    }
+      // would better make buttons disabled while we are performing requests
+      // or even place some spinner for the time we are waiting response from another service
+        try {
+
+            const refundResponse = await processRefund(orderPaymentIntentionId);
+            console.log('result', refundResponse);
+            // if succeed clean up paymentIntent in order's metadata
+            const updateMetadataResponse = await runUpdateMetadata(
+                  {
+                    id: orderId,
+                    input:  [{key: 'paymentIntentionId', value: ''}]
+                  }
+              )
+            appBridge?.dispatch({
+                    type: "notification",
+                    payload: {
+                      status: "success",
+                      title: "Refund",
+                      text: "Refund passed successfully",
+                      actionId: "message-from-app",
+                    },
+                  });
+            } catch (err: any) {
+              console.log(err);
+              setPaymentError(err.message);
+              appBridge?.dispatch({
+                        type: "notification",
+                        payload: {
+                          status: "error",
+                          title: "Refund",
+                          text: err.message,
+                          actionId: "message-from-app",
+                        },
+                      });
+        } finally {
+            setPaymentLoading(false);
+        }
 
   };
 
@@ -272,11 +288,6 @@ const ActionsPage = () => {
           <Text as={"h2"} size={8}>
             Webhooks
           </Text>
-          <>
-            {paymentdata && (
-                <Text>Payment succeed</Text>
-            )} </>
-
           <Text>
             The App Template contains an example <code>ORDER_CREATED</code> webhook under the path{" "}
             <code>src/pages/api/order-created</code>.

@@ -1,9 +1,8 @@
 import Stripe from "stripe";
 
-
 // @ts-ignore
 export const stripe = new Stripe(
-    "sk_test_51PcUel2KdrNKvQJCUh4JsqOwo2uLneQEiNkvu4zeKoFEMVLwXsOldaCRj7k3ox9UJYrhjVQE1yNKAaj3SKwpK0hv00Eor0oKUs",
+    process.env.STRIPE_SECRET_KEY ?? '',
     {
         apiVersion: "2023-10-16",
         appInfo: {
@@ -14,7 +13,7 @@ export const stripe = new Stripe(
         typescript: true,
     });
 
-const readerId = 'tmr_FpD30gYPwhSd9i'
+const readerId = process.env.STRIPE_READER_ID ?? '';
 
 export async function createIntent(amount: any, currency: any)  {
   const paymentIntent: any = await stripe.paymentIntents.create(

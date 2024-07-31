@@ -3,13 +3,6 @@ import { Box, Text } from "@saleor/macaw-ui";
 import Link from "next/link";
 import {useOrderDetailsGraphiQlQuery} from "../generated/graphql";
 
-/**
- * GraphQL Code Generator scans for gql tags and generates types based on them.
- * The below query is used to generate the "useLastOrderQuery" hook.
- * If you modify it, make sure to run "pnpm codegen" to regenerate the types.
- */
-
-
 function generateNumberOfLinesText(lines: any[]) {
   if (lines.length === 0) {
     return "no lines";
@@ -24,9 +17,6 @@ function generateNumberOfLinesText(lines: any[]) {
 
 export const OrderById = (params: any) => {
   const { appBridge } = useAppBridge();
-
-  // Using the generated hook
-  //const [{ data, fetching }] = useLastOrderQuery();
   const [{ data, fetching }] = useOrderDetailsGraphiQlQuery(
       {variables: {id: params.orderId}}
   );
