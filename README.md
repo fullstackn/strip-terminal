@@ -3,12 +3,17 @@
 </div>
 
 <div align="center">
-  <h1>Strip Terminal Payments</h1>
+  <h1>Stripe Terminal Payments</h1>
 </div>
 
-Boilerplate for Stripe Terminal payments. 
+Boilerplate for Stripe Terminal Payments Saleor App. 
 
 App supposed to be called from menu of order details by calling option `Stripe Terminal Payment`.
+
+To use the application, you need to register a Stripe
+account and set values for the environment variables
+- STRIPE_SECRET_KEY (Developers -> API keys -> Secret key)
+- STRIPE_READER_ID (Terminal reader ID)
 
 The application page displays 
 - information about the order we intend to pay for
@@ -16,4 +21,5 @@ The application page displays
 
 TODO
 - Implement the correct payment creation process as described <a href="https://docs.saleor.io/developer/payments/payment-apps">here</a>
-, so Stripe Terminal Payment should create payment and transaction linked with the order. 
+, so Stripe Terminal Payment should create payment and transaction linked with the
+order. This should provide changing order status as well.
