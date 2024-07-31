@@ -38,3 +38,4 @@ order. This should provide changing order status as well.
 - Check in the response if terminal payment/refund is not processed successfully. 
 Raise an exception in this case.
 - Unit testing
+- Provide showing the receipt.  
