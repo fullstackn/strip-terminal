@@ -12,8 +12,14 @@ App supposed to be called from menu of order details by calling option `Stripe T
 
 In order to install up in dev mode:
 - run `pnpm dev`
-- create a tunnel
-- install app through Saleor web-interface 
+- create a tunnel, for example though *serveo* service 
+```
+ssh -R 80:localhost:3000 serveo.net
+```
+- install app through Saleor web-interface or through Saleor CLI:
+```
+saleor app install --manifest-URL=https://<your App address>/api/manifest
+```
 
 To use the application, you need to register a Stripe
 account, create a reader (test mode is available) and set up 
